@@ -1,0 +1,53 @@
+const Joi = require("joi");
+
+// Schema for input data validation
+exports.signupSchema = Joi.object({
+  // Email schema: string, min 6 chars, max 60 chars, required, only .com or .net domains
+  email: Joi.string()
+    .min(6)
+    .max(60)
+    .required()
+    .email({
+      tlds: { allow: ["com", "net"] },
+    }),
+
+  // Password schema: required, min 8 chars, must contain lowercase, uppercase, and digit
+  password: Joi.string()
+    .required()
+    .pattern(new RegExp("^(?=.*[a-z])(?=.*[A-Z])(?=.*\\d).{8,}$"))
+    .messages({
+      "string.pattern.base":
+        "Password must contain at least 8 characters with at least one lowercase letter, one uppercase letter, and one digit",
+    }),
+});
+
+exports.signinSchema = Joi.object({
+  // Email schema: string, min 6 chars, max 60 chars, required, only .com or .net domains
+  email: Joi.string()
+    .min(6)
+    .max(60)
+    .required()
+    .email({
+      tlds: { allow: ["com", "net"] },
+    }),
+
+  // Password schema: required, min 8 chars, must contain lowercase, uppercase, and digit
+  password: Joi.string()
+    .required()
+    .pattern(new RegExp("^(?=.*[a-z])(?=.*[A-Z])(?=.*\\d).{8,}$"))
+    .messages({
+      "string.pattern.base":
+        "Password must contain at least 8 characters with at least one lowercase letter, one uppercase letter, and one digit",
+    }),
+});
+
+exports.acceptCodeSchema = Joi.object({
+  email: Joi.string()
+    .min(6)
+    .max(60)
+    .required()
+    .email({
+      tlds: { allow: ["com", "net"] },
+    }),
+  providedCode: Joi.number().required(),
+});

@@ -3,8 +3,10 @@ const helmet = require('helmet') //
 const cors = require('cors')
 const cookieParser = require('cookie-parser')
 const mongoose = require('mongoose')
-const app = express()
+const authRouter = require('./routers/authRouter')
 
+
+const app = express()
 app.use(cors())
 app.use(helmet())
 app.use(cookieParser())
@@ -17,6 +19,7 @@ mongoose.connect(process.env.MONGO_URL).then(()=>{
     console.log(err);
 })
 
+app.use('/api/auth',authRouter) //if api contains /api/auth, go to authRouter there contains all the authRouters
 
 
 app.get('/',(req,res) =>{
