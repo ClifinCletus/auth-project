@@ -1,8 +1,14 @@
 const jwt = require("jsonwebtoken");
-const { signupSchema, signinSchema , acceptCodeSchema } = require("../middlewares/validator");
+const {
+  signupSchema,
+  signinSchema,
+  acceptCodeSchema,
+  changePasswordSchema,
+} = require("../middlewares/validator");
 const User = require("../models/usersModel");
 const { doHash, doHashValidation, hmacProcess } = require("../utils/hashing");
 const transport = require("../middlewares/sendMail");
+const { compareSync } = require("bcryptjs");
 
 exports.signup = async (req, res) => {
   //when signup, gets email and password data and do things in it
@@ -90,7 +96,7 @@ exports.signin = async (req, res) => {
     //we are sending a cookie as Authorization : Bearen jwt_token (known), then with the expires we are setting to work in http if in production mode and be secure
     res
       .cookie("Authorization", "Bearer" + token, {
-        expires: 1000,
+        expires: new Date(Date.now() + 10000000),
         httpOnly: process.env.NODE_ENV === "production",
         secure: process.env.NODE_ENV === "production",
       })
@@ -111,6 +117,8 @@ exports.signout = async (req, res) => {
   });
 };
 
+///////////////
+
 exports.sendVerificationCode = async (req, res) => {
   const { email } = req.body;
   try {
@@ -127,14 +135,15 @@ exports.sendVerificationCode = async (req, res) => {
         .json({ success: false, message: "You are already verified" });
     }
 
-    const verificationCode = Math.floor(Math.random() * 1000000);
+    //proper 6 digit code
+    const verificationCode = Math.floor(100000 + Math.random() * 900000);
 
     let info = await transport.sendMail({
       //to send email to the user who is trying to log in, the transport fn is defined in middlewares
       from: process.env.NODE_CODE_SENDER_EMAIL_ADDRESS,
       to: existingUser.email,
       subject: "verification code",
-      html: "<h1>" + verificationCode + "</h1>", //sends the verification code as in like a html h1 tag
+      html: `<h1>Your verification code is: ${verificationCode}</h1>`, //sends the verification code as in like a html h1 tag
     });
 
     if (info.accepted[0] === existingUser.email) {
@@ -145,7 +154,7 @@ exports.sendVerificationCode = async (req, res) => {
         process.env.HMAC_VERIFICATION_CODE_SECRET
       );
       existingUser.verificationCode = hashedVerificationCode;
-      existingUser.verificationCodeValdation = Date.now();
+      existingUser.verificationCodeValidation = Date.now();
       await existingUser.save(); //we can do like this to update the values of the existingUser in the db, its more simple using this
 
       return res.status(200).json({ success: true, message: "code sent!" });
@@ -154,6 +163,7 @@ exports.sendVerificationCode = async (req, res) => {
     res.status(400).json({ success: false, message: "code sent failed! " });
   } catch (error) {
     console.log(error);
+    res.status(500).json({ success: false, message: "Internal server error" });
   }
 };
 
@@ -170,10 +180,12 @@ exports.verifyVerificationCode = async (req, res) => {
         .json({ success: false, message: error.details[0].message });
     }
 
-    const codeValue = providedCode.toString();
+    const codeValue = String(providedCode).trim();
     const existingUser = await User.findOne({ email }).select(
-      "+verificationCode+verificationCodeValidation"
+      "+verificationCode +verificationCodeValidation"
     ); //by defult not get these, so manually saying to provide them also
+    console.log(existingUser);
+
     if (!existingUser) {
       return res
         .status(404)
@@ -190,48 +202,97 @@ exports.verifyVerificationCode = async (req, res) => {
       !existingUser.verificationCode ||
       !existingUser.verificationCodeValdation
     ) {
-      return res
-        .status(400)
-        .json({
-          success: false,
-          message: "something is wrong with the verification code!",
-        });
+      return res.status(400).json({
+        success: false,
+        message: "No verification code found. Please request a new code.",
+      });
     }
-     
-    //if the code has been send 5 mins ago and not been verified by user, it expires
-    if(Date.now() - existingUser.verificationCodeValdation > 5*60*1000){
-      return res
-        .status(400)
-        .json({
-          success: false,
-          message: "code has been expired!",
-        });
+
+    //if the code has been send 5 mins ago and not been verified by user, it expires and remove it from the db
+    if (Date.now() - existingUser.verificationCodeValdation > 5 * 60 * 1000) {
+      existingUser.verificationCode = undefined;
+      existingUser.verificationCodeValidation = undefined;
+      await existingUser.save();
+      return res.status(400).json({
+        success: false,
+        message: "code has been expired!",
+      });
     }
-    
+
     //checks if the provided code and the code in db is same, if so makes verified and remove the code from db
-    const hashedCodeValue = hmacProcess(codeValue,process.env.HMAC_VERIFICATION_CODE_SECRET)
-    if (hashedCodeValue === existingUser.verificationCode){
-      existingUser.verified =  true;
+    const hashedCodeValue = hmacProcess(
+      codeValue,
+      process.env.HMAC_VERIFICATION_CODE_SECRET
+    );
+    if (hashedCodeValue === existingUser.verificationCode) {
+      existingUser.verified = true;
       existingUser.verificationCode = undefined;
       existingUser.verificationCodeValdation = undefined;
-      await existingUser.save()
+      await existingUser.save();
 
-      return res
-        .status(200)
-        .json({
-          success: true,
-          message: "your account have been verified",
-        });
+      return res.status(200).json({
+        success: true,
+        message: "your account have been verified successfully",
+      });
     }
- 
-    //if anything other than the above occurs, send the message as this
-    return res
-        .status(400)
-        .json({
-          success: false,
-          message: "unexpected occured!",
-        });
 
+    //if anything other than the above occurs, send the message as this
+    return res.status(400).json({
+      success: false,
+      message: "Invalid verification code. Please try again.",
+    });
+  } catch (error) {
+    console.log(error);
+    res.status(500).json({ success: false, message: "Internal server error" });
+  }
+};
+
+exports.changePassword = async (req, res) => {
+  //checking initially if the user is logged in and verified via verification code
+  const { userId, verified } = req.user;
+  const { oldPassword, newPassword } = req.body;
+
+  try {
+    //first checks the old and newpassword inputed format is correct
+    const { error, value } = changePasswordSchema.validate({
+      oldPassword,
+      newPassword,
+    });
+    if (error) {
+      return res
+        .status(401)
+        .json({ success: false, message: error.details[0].message });
+    }
+
+    //optional
+    if (!verified) {
+      return res
+        .status(401)
+        .json({ success: false, message: "You are not verified user !" });
+    }
+
+    const existingUser = await User.findOne({ _id: userId }).select(
+      "+password"
+    );
+    if (!existingUser) {
+      return res
+        .status(401)
+        .json({ success: false, message: "User does not exists!" });
+    }
+
+    const result = await doHashValidation(oldPassword, existingUser.password);
+    if (!result) {
+      return req
+        .status(401)
+        .json({ success: false, message: "Invalid credentials! " });
+    }
+
+    const hashedPassword = await doHash(newPassword, 12);
+    existingUser.password = hashedPassword;
+    await existingUser.save();
+    return res
+      .status(200)
+      .json({ success: true, message: "Password updated !!" });
   } catch (error) {
     console.log(error);
   }
