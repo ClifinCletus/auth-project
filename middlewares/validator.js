@@ -70,3 +70,23 @@ exports.changePasswordSchema = Joi.object({
     }),
     
 }) 
+
+
+//for thr forgot password input(email,code,newpassword)
+exports.acceptFPCodeSchema = Joi.object({
+   email: Joi.string()
+    .min(6)
+    .max(60)
+    .required()
+    .email({
+      tlds: { allow: ["com", "net"] },
+    }),
+  providedCode: Joi.number().required(),
+  newPassword: Joi.string()
+    .required()
+    .pattern(new RegExp("^(?=.*[a-z])(?=.*[A-Z])(?=.*\\d).{8,}$"))
+    .messages({
+      "string.pattern.base":
+        "Password must contain at least 8 characters with at least one lowercase letter, one uppercase letter, and one digit",
+    }),
+})

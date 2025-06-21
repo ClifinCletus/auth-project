@@ -4,6 +4,7 @@ const {
   signinSchema,
   acceptCodeSchema,
   changePasswordSchema,
+  acceptFPCodeSchema,
 } = require("../middlewares/validator");
 const User = require("../models/usersModel");
 const { doHash, doHashValidation, hmacProcess } = require("../utils/hashing");
@@ -209,7 +210,7 @@ exports.verifyVerificationCode = async (req, res) => {
     }
 
     //if the code has been send 5 mins ago and not been verified by user, it expires and remove it from the db
-    if (Date.now() - existingUser.verificationCodeValdation > 5 * 60 * 1000) {
+    if (Date.now() - existingUser.verificationCodeValidation > 5 * 60 * 1000) {
       existingUser.verificationCode = undefined;
       existingUser.verificationCodeValidation = undefined;
       await existingUser.save();
@@ -295,5 +296,131 @@ exports.changePassword = async (req, res) => {
       .json({ success: true, message: "Password updated !!" });
   } catch (error) {
     console.log(error);
+  }
+};
+
+//to do forgetpassword(similar as sendverificationcode and verifyVerificationCode)
+
+exports.sendForgotPasswordCode = async (req, res) => {
+  const { email } = req.body;
+  try {
+    const existingUser = await User.findOne({ email });
+    if (!existingUser) {
+      return res
+        .status(404)
+        .json({ success: false, message: "User does not exists!" });
+    }
+
+    //proper 6 digit code
+    const verificationCode = Math.floor(100000 + Math.random() * 900000);
+
+    let info = await transport.sendMail({
+      //to send email to the user who is trying to log in, the transport fn is defined in middlewares
+      from: process.env.NODE_CODE_SENDER_EMAIL_ADDRESS,
+      to: existingUser.email,
+      subject: "Forgot Password code",
+      html: `<h1>Your Code to reset password is: ${verificationCode}</h1>`, //sends the verification code as in like a html h1 tag
+    });
+
+    if (info.accepted[0] === existingUser.email) {
+      //if the code is received to the logging in user
+      //we need to save the validationcode in the db (its hashedvalue). but using bcrypt to hash it makes operation slower, hence used hmac
+      const hashedVerificationCode = hmacProcess(
+        verificationCode.toString(),
+        process.env.HMAC_VERIFICATION_CODE_SECRET
+      );
+      existingUser.forgotPasswordCode = hashedVerificationCode;
+      existingUser.forgotPasswordCodeValidation = Date.now();
+      await existingUser.save(); //we can do like this to update the values of the existingUser in the db, its more simple using this
+
+      return res.status(200).json({ success: true, message: "code sent!" });
+    }
+    //if failed to send email
+    res.status(400).json({ success: false, message: "code sent failed! " });
+  } catch (error) {
+    console.log(error);
+    res.status(500).json({ success: false, message: "Internal server error" });
+  }
+};
+
+//to verify the code given by user with the one we send via email
+exports.verifyForgotPasswordCode = async (req, res) => {
+  const { email, providedCode, newPassword } = req.body;
+  try {
+    //we need to validate the input from the user via joi
+    const { error, value } = acceptFPCodeSchema.validate({
+      email,
+      providedCode,
+      newPassword
+    });
+    if (error) {
+      //if error pass it
+      return res
+        .status(401)
+        .json({ success: false, message: error.details[0].message });
+    }
+
+    const codeValue = String(providedCode).trim();
+    const existingUser = await User.findOne({ email }).select(
+      "+forgotPasswordCode +forgotPasswordCodeValidation"
+    ); //by defult not get these, so manually saying to provide them also
+    console.log(existingUser);
+
+    if (!existingUser) {
+      return res
+        .status(404)
+        .json({ success: false, message: "User does not exists!" });
+    }
+
+    if (
+      !existingUser.forgotPasswordCode ||
+      !existingUser.forgotPasswordCodeValidation
+    ) {
+      return res.status(400).json({
+        success: false,
+        message: "No verification code found. Please request a new code.",
+      });
+    }
+
+    //if the code has been send 5 mins ago and not been verified by user, it expires and remove it from the db
+    if (
+      Date.now() - existingUser.forgotPasswordCodeValidation >
+      5 * 60 * 1000
+    ) {
+      existingUser.forgotPasswordCode = undefined;
+      existingUser.forgotPasswordCodeValidation = undefined;
+      await existingUser.save();
+      return res.status(400).json({
+        success: false,
+        message: "code has been expired!",
+      });
+    }
+
+    //checks if the provided code and the code in db is same, if so makes verified and remove the code from db
+    const hashedCodeValue = hmacProcess(
+      codeValue,
+      process.env.HMAC_VERIFICATION_CODE_SECRET
+    );
+    if (hashedCodeValue === existingUser.forgotPasswordCode) {
+      const hashedPassword = await doHash(newPassword, 12);
+      existingUser.password = hashedPassword
+      existingUser.verificationCode = undefined;
+      existingUser.verificationCodeValdation = undefined;
+      await existingUser.save();
+
+      return res.status(200).json({
+        success: true,
+        message: "Password Updated!",
+      });
+    }
+
+    //if anything other than the above occurs, send the message as this
+    return res.status(400).json({
+      success: false,
+      message: "Invalid verification code. Please try again.",
+    });
+  } catch (error) {
+    console.log(error);
+    res.status(500).json({ success: false, message: "Internal server error" });
   }
 };
