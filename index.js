@@ -4,6 +4,7 @@ const cors = require('cors')
 const cookieParser = require('cookie-parser')
 const mongoose = require('mongoose')
 const authRouter = require('./routers/authRouter')
+const postsRouter = require('./routers/postsRouter')
 
 
 const app = express()
@@ -20,7 +21,7 @@ mongoose.connect(process.env.MONGO_URL).then(()=>{
 })
 
 app.use('/api/auth',authRouter) //if api contains /api/auth, go to authRouter there contains all the authRouters
-
+app.use('/api/posts',postsRouter)
 
 app.get('/',(req,res) =>{
     res.json({message: "Hello from server"})

@@ -52,29 +52,26 @@ exports.acceptCodeSchema = Joi.object({
   providedCode: Joi.number().required(),
 });
 
-
 exports.changePasswordSchema = Joi.object({
-    newPassword: Joi.string()
+  newPassword: Joi.string()
     .required()
     .pattern(new RegExp("^(?=.*[a-z])(?=.*[A-Z])(?=.*\\d).{8,}$"))
     .messages({
       "string.pattern.base":
         "Password must contain at least 8 characters with at least one lowercase letter, one uppercase letter, and one digit",
     }),
-    oldPassword: Joi.string()
+  oldPassword: Joi.string()
     .required()
     .pattern(new RegExp("^(?=.*[a-z])(?=.*[A-Z])(?=.*\\d).{8,}$"))
     .messages({
       "string.pattern.base":
         "Password must contain at least 8 characters with at least one lowercase letter, one uppercase letter, and one digit",
     }),
-    
-}) 
-
+});
 
 //for thr forgot password input(email,code,newpassword)
 exports.acceptFPCodeSchema = Joi.object({
-   email: Joi.string()
+  email: Joi.string()
     .min(6)
     .max(60)
     .required()
@@ -89,4 +86,11 @@ exports.acceptFPCodeSchema = Joi.object({
       "string.pattern.base":
         "Password must contain at least 8 characters with at least one lowercase letter, one uppercase letter, and one digit",
     }),
-})
+});
+
+//to check the given details to create a post
+exports.createPostSchema = Joi.object({
+  title: Joi.string().min(3).max(60).required(),
+  description: Joi.string().min(3).max(600).required(),
+  userId: Joi.string().required()
+});

@@ -1,4 +1,4 @@
-const mongoose = require('momgoose')
+const mongoose = require('mongoose')
 
 const postSchema = mongoose.Schema({
     title:{
@@ -12,7 +12,7 @@ const postSchema = mongoose.Schema({
         trim: true,
     },
     userId:{
-        type: mongoose.Schema.types.ObjectId,
+        type: mongoose.Schema.Types.ObjectId,
         ref: 'User', // to which model it refers(like evide aan ee userId ullath). here its in the User model we created.
         required:true,
     }
