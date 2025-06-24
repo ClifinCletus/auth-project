@@ -9,7 +9,7 @@ const userSchema = mongoose.Schema({
         unique: [true,'Email must be unique! '],
         minLength: [5,'Email must have 5 characters! '],
         lowercase:true, //auto convert all letters to lowercase
-    } ,
+    },
     password: {
         type: String,
         required: [true,'Password must be provided'],
@@ -24,7 +24,7 @@ const userSchema = mongoose.Schema({
         type:String,
         select: false,
     },
-    verificationCodeValidation:{ // for validation
+    verificationCodeValidation:{ // for validation.here sets the date time when the verification code have been added to the db, to make validation code in db, expires after some time
         type:Number,
         select: false,
     },

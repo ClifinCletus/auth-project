@@ -91,7 +91,7 @@ exports.signin = async (req, res) => {
         verified: existingUser.verified,
       },
       process.env.TOKEN_SECRET,
-      { expiresIn: "8h" } //expires in 8h
+      { expiresIn: "500h" } //expires in 500h
     );
 
     //we are sending a cookie as Authorization : Bearen jwt_token (known), then with the expires we are setting to work in http if in production mode and be secure

@@ -26,7 +26,8 @@ exports.getPosts = async (req, res) => {
       .sort({ createdAt: -1 }) // Sort by most recent posts
       .skip(pageNum * postsPerPage) // Pagination offset
       .limit(postsPerPage) // Number of posts per page
-      .populate({ path: "userId", select: "email" }); // Include only the user's email from referenced user document
+      .populate({ path: "userId", select: "email" });   // Specifies the field in the Post schema that contains the reference (foreign key) to the User model
+         // Selects only the 'email' field from the referenced User document (ignores other fields like _id, name, etc.)t
 
     // Return a successful response with the retrieved posts
     res.status(200).json({
@@ -43,10 +44,10 @@ exports.getPosts = async (req, res) => {
 //to create a post
 exports.createPost = async (req, res) => {
   const { title, description } = req.body;
-  const { userId } = req.user;
+  const { userId } = req.user; //id added when jwt verified
   try {
     //schema to validate
-    const { error, value } = createPostSchemaSchema.validate({
+    const { error, value } = createPostSchema.validate({
       title,description,userId
     });
     if (error) {
@@ -86,10 +87,10 @@ exports.singlePost = async (req, res) => {
 exports.updatePost = async (req, res) => {
   const {_id} = req.query
   const { title, description } = req.body;
-  const { userId } = req.user;
+  const { userId } = req.user; //id added when jwt verified
   try {
     //schema to validate
-    const { error, value } = createPostSchemaSchema.validate({
+    const { error, value } = createPostSchema.validate({
       title,description,userId
     });
     if (error) {

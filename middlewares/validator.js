@@ -7,7 +7,7 @@ exports.signupSchema = Joi.object({
     .min(6)
     .max(60)
     .required()
-    .email({
+    .email({ //important
       tlds: { allow: ["com", "net"] },
     }),
 
